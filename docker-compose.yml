@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # Redis Service
+  redis:
+    image: redis:7-alpine
+    container_name: backend-proxy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+  # HTTP Server A (Region 1)
+  server-a:
+    build: .
+    container_name: backend-proxy-server-a
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - HTTP_SERVER_A_PORT=4001
+    ports:
+      - "4001:4001"
+    command: ["npm", "run", "dev:serverA"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+  # HTTP Server B (Region 2)
+  server-b:
+    build: .
+    container_name: backend-proxy-server-b
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - HTTP_SERVER_B_PORT=4002
+    ports:
+      - "4002:4002"
+    command: ["npm", "run", "dev:serverB"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4002/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+  # WebSocket Server 1 (Region 1)
+  ws-server-1:
+    build: .
+    container_name: backend-proxy-ws1
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - WS_SERVER_1_PORT=5001
+      - REDIS_HOST=redis
+    ports:
+      - "5001:5001"
+    command: ["npm", "run", "dev:ws1"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+  # WebSocket Server 2 (Region 2)
+  ws-server-2:
+    build: .
+    container_name: backend-proxy-ws2
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - WS_SERVER_2_PORT=5002
+      - REDIS_HOST=redis
+    ports:
+      - "5002:5002"
+    command: ["npm", "run", "dev:ws2"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+  # Proxy Server
+  proxy:
+    build: .
+    container_name: backend-proxy
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - PROXY_PORT=3000
+      - HTTP_SERVER_1_URL=http://server-a:4001
+      - HTTP_SERVER_2_URL=http://server-b:4002
+      - WS_SERVER_1_URL=http://ws-server-1:5001
+      - WS_SERVER_2_URL=http://ws-server-2:5002
+    ports:
+      - "3000:3000"
+    command: ["npm", "run", "dev:proxy"]
+    depends_on:
+      server-a:
+        condition: service_healthy
+      server-b:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  backend-network:
+    driver: bridge
