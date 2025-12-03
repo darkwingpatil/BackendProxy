@@ -1,0 +1,39 @@
+{
+  "name": "backendproxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev:redis": "node --loader ts-node/esm start-redis.ts",
+    "dev:proxy": "node --loader ts-node/esm proxy.ts",
+    "dev:serverA": "node --loader ts-node/esm servers/serverZA.ts",
+    "dev:serverB": "node --loader ts-node/esm servers/serverZB.ts",
+    "dev:ws1": "node --loader ts-node/esm servers/ws-server-1.ts",
+    "dev:ws2": "node --loader ts-node/esm servers/ws-server-2.ts",
+    "dev:http": "concurrently -n \"ServerA,ServerB,Proxy\" -c \"cyan,magenta,blue\" \"npm run dev:serverA\" \"npm run dev:serverB\" \"npm run dev:proxy\"",
+    "dev:all": "concurrently -n \"Redis,ServerA,ServerB,WS1,WS2,Proxy\" -c \"red,cyan,magenta,green,yellow,blue\" \"npm run dev:redis\" \"npm run dev:serverA\" \"npm run dev:serverB\" \"npm run dev:ws1\" \"npm run dev:ws2\" \"npm run dev:proxy\"",
+    "start": "npm run dev:all"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5",
+    "jsonwebtoken": "^9.0.2",
+    "redis": "^5.10.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.10.1",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.1",
+    "redis-memory-server": "^0.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
