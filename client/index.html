@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Region-aware Chat Client</title>
+<style>
+  :root{
+    --bg:#0f1724; --card:#0b1220; --accent:#4f46e5; --muted:#94a3b8;
+    --in: #0ea5a4; --out: #f59e0b;
+  }
+  body{ margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+    background: linear-gradient(180deg,#071029 0%, #071a2f 100%); color:#e6eef8;
+    display:flex; align-items:center; justify-content:center; height:100vh; }
+  .app { width:920px; max-width:96vw; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:18px; box-shadow:0 8px 30px rgba(2,6,23,0.7); display:grid; grid-template-columns:320px 1fr; gap:16px; }
+  .panel { background:var(--card); border-radius:10px; padding:12px; }
+  .left { display:flex; flex-direction:column; gap:10px; }
+  label { font-size:13px; color:var(--muted); display:block; margin-bottom:6px; }
+  input, select, button, textarea { width:100%; box-sizing:border-box; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); background:transparent; color:inherit; outline:none; }
+  .status { display:flex; align-items:center; gap:8px; margin-top:4px; font-size:13px; color:var(--muted); }
+  .dot { width:10px; height:10px; border-radius:50%; background:#334155; display:inline-block; box-shadow:0 0 6px rgba(0,0,0,0.5); }
+  .dot.connected { background: #10b981; box-shadow:0 0 8px rgba(16,185,129,0.25); }
+  .controls { display:flex; gap:8px; }
+  .controls button { flex:1; cursor:pointer; background:linear-gradient(90deg,var(--accent),#06b6d4); border:none; color:white; font-weight:600; }
+  .chats { display:flex; flex-direction:column; gap:10px; height:64vh; overflow:auto; padding:8px; }
+  .message { max-width:70%; padding:10px 12px; border-radius:10px; font-size:14px; line-height:1.3; box-shadow:0 6px 20px rgba(2,6,23,0.6); }
+  .msg-out { margin-left:auto; background:linear-gradient(180deg,var(--out), #f97316); color:#071426; border-bottom-right-radius:2px; }
+  .msg-in  { margin-right:auto; background:linear-gradient(180deg,var(--in), #06b6d4); color:#021518; border-bottom-left-radius:2px; }
+  .meta { font-size:12px; color:rgba(255,255,255,0.75); margin-top:6px; display:flex; justify-content:space-between; gap:8px; }
+  .send-row { display:flex; gap:8px; align-items:center; margin-top:10px; }
+  .send-row input { flex:1; }
+  footer { font-size:12px; color:var(--muted); text-align:center; margin-top:8px; }
+  .small { font-size:12px; color:var(--muted); }
+  .hint { font-size:12px; color:var(--muted); margin-top:6px; }
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Chat client">
+    <div class="panel left">
+      <h3 style="margin:6px 0 4px 0">Client Settings</h3>
+
+      <div>
+        <label for="proxyUrl">Proxy WebSocket URL</label>
+        <input id="proxyUrl" value="ws://localhost:3000/ws" />
+        <div class="hint">Change port if your proxy is on <code>8000</code> or another host.</div>
+      </div>
+
+      <div>
+        <label for="region">Region</label>
+        <select id="region">
+          <option value="1">Region 1</option>
+          <option value="2">Region 2</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="userId">Your User ID</label>
+        <input id="userId" placeholder="alice / bob / 101 / 202" />
+      </div>
+
+      <div>
+        <label for="targetId">Target User ID</label>
+        <input id="targetId" placeholder="user you want to message" />
+      </div>
+
+      <div class="controls">
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn" style="background:#111827">Disconnect</button>
+      </div>
+
+      <div class="status" id="connStatus">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Not connected</span>
+      </div>
+
+      <div style="margin-top:10px">
+        <label class="small">Local logs</label>
+        <textarea id="log" style="height:160px" readonly></textarea>
+      </div>
+
+      <footer>Open this file in two browser windows/tabs and connect with different user IDs to chat.</footer>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:6px 0 6px 0">Messages</h3>
+
+      <div class="chats" id="messages"></div>
+
+      <div class="send-row">
+        <input id="msgInput" placeholder="Type a message..." />
+        <button id="sendBtn" style="width:110px">Send</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const proxyInput = document.getElementById('proxyUrl');
+  const regionSelect = document.getElementById('region');
+  const userIdInput = document.getElementById('userId');
+  const targetInput = document.getElementById('targetId');
+  const connectBtn = document.getElementById('connectBtn');
+  const disconnectBtn = document.getElementById('disconnectBtn');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const logEl = document.getElementById('log');
+  const messagesEl = document.getElementById('messages');
+  const sendBtn = document.getElementById('sendBtn');
+  const msgInput = document.getElementById('msgInput');
+
+  let ws = null;
+  let connectedUser = null;
+
+  // Restore last settings
+  if (localStorage.chat_userId) userIdInput.value = localStorage.chat_userId;
+  if (localStorage.chat_region) regionSelect.value = localStorage.chat_region;
+  if (localStorage.chat_proxy) proxyInput.value = localStorage.chat_proxy;
+  if (localStorage.chat_target) targetInput.value = localStorage.chat_target;
+
+  function log(s){
+    const t = new Date().toLocaleTimeString();
+    logEl.value += `[${t}] ${s}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setStatus(connected){
+    if (connected){
+      statusDot.classList.add('connected');
+      statusText.textContent = `Connected as ${connectedUser}`;
+    } else {
+      statusDot.classList.remove('connected');
+      statusText.textContent = 'Not connected';
+    }
+  }
+
+  function addMessage({from, to, text, ts}, direction){
+    const wrap = document.createElement('div');
+    wrap.className = 'message ' + (direction==='out' ? 'msg-out' : 'msg-in');
+
+    wrap.innerHTML = `<div>${escapeHtml(text)}</div>
+                      <div class="meta"><div>${escapeHtml(from)}</div><div>${new Date(ts).toLocaleTimeString()}</div></div>`;
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function buildWsUrl(){
+    let base = proxyInput.value.trim();
+    if (!base) base = 'ws://localhost:3000/ws';
+    // ensure no trailing slash
+    base = base.replace(/\/$/, '');
+    const user = encodeURIComponent(userIdInput.value.trim() || '');
+    const region = encodeURIComponent(regionSelect.value);
+    // attach as query params so server/proxy can read them
+    return `${base}?userId=${user}&region=${region}`;
+  }
+
+  connectBtn.addEventListener('click', () => {
+    const user = userIdInput.value.trim();
+    if (!user) { alert('Enter userId'); return; }
+    // persist
+    localStorage.chat_userId = user;
+    localStorage.chat_region = regionSelect.value;
+    localStorage.chat_proxy = proxyInput.value;
+    localStorage.chat_target = targetInput.value;
+
+    const url = buildWsUrl();
+    log('Connecting to ' + url);
+    try {
+      ws = new WebSocket(url);
+    } catch (err) {
+      log('WebSocket error: ' + err.message);
+      return;
+    }
+
+    ws.addEventListener('open', () => {
+      connectedUser = user;
+      setStatus(true);
+      log('WebSocket opened');
+    });
+
+    ws.addEventListener('message', ev => {
+      try {
+        const data = JSON.parse(ev.data);
+        log('Received: ' + ev.data);
+        // add message to UI; decide direction
+        const dir = (data.from === connectedUser) ? 'out' : 'in';
+        addMessage({...data, ts: data.ts || Date.now()}, dir);
+      } catch (e) {
+        log('Non-JSON message: ' + ev.data);
+      }
+    });
+
+    ws.addEventListener('close', () => {
+      log('WebSocket closed');
+      setStatus(false);
+      ws = null;
+      connectedUser = null;
+    });
+
+    ws.addEventListener('error', (err) => {
+      log('WebSocket error');
+      console.error(err);
+    });
+  });
+
+  disconnectBtn.addEventListener('click', () => {
+    if (ws) {
+      ws.close();
+      ws = null;
+      setStatus(false);
+      log('Manually disconnected');
+    }
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+  msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  function sendMessage(){
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      alert('Not connected');
+      return;
+    }
+    const text = msgInput.value.trim();
+    const to = targetInput.value.trim();
+    const from = userIdInput.value.trim();
+    if (!to) { alert('Enter target user id'); return; }
+    if (!text) return;
+    const payload = { from, to, text, ts: Date.now() };
+    ws.send(JSON.stringify(payload));
+    addMessage(payload, 'out');
+    msgInput.value = '';
+  }
+
+  // small helper: show saved target
+  targetInput.addEventListener('blur', () => {
+    localStorage.chat_target = targetInput.value;
+  });
+
+  // initial UI state
+  setStatus(false);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+logs/
+*.log
+.DS_Store
+*.js
+*.d.ts
+*.map
+!*.config.js
+.env
+.env.local
+.env.production
+coverage/
+.nyc_output/
+*.pid
+*.seed
+*.pid.lock
