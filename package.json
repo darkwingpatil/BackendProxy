@@ -14,7 +14,11 @@
     "dev:ws2": "node --loader ts-node/esm servers/ws-server-2.ts",
     "dev:http": "concurrently -n \"ServerA,ServerB,Proxy\" -c \"cyan,magenta,blue\" \"npm run dev:serverA\" \"npm run dev:serverB\" \"npm run dev:proxy\"",
     "dev:all": "concurrently -n \"Redis,ServerA,ServerB,WS1,WS2,Proxy\" -c \"red,cyan,magenta,green,yellow,blue\" \"npm run dev:redis\" \"npm run dev:serverA\" \"npm run dev:serverB\" \"npm run dev:ws1\" \"npm run dev:ws2\" \"npm run dev:proxy\"",
-    "start": "npm run dev:all"
+    "start": "npm run dev:all",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\""
   },
   "keywords": [],
   "author": "",
@@ -31,7 +35,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.1",
     "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.48.1",
+    "@typescript-eslint/parser": "^8.48.1",
     "concurrently": "^9.2.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4",
     "redis-memory-server": "^0.14.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
