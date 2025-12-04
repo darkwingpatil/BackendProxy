@@ -86,11 +86,11 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         }
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code, reason) => {
         clearInterval(pingInterval);
         if (userId) {
             delete clients[userId];
-            logger.info(`User ${userId} disconnected (total: ${Object.keys(clients).length})`);
+            logger.info(`User ${userId} disconnected (total: ${Object.keys(clients).length}) - Code: ${code}, Reason: ${reason.toString()}`);
         }
     });
 

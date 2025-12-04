@@ -54,8 +54,11 @@ curl -H "x-region: 2" http://localhost:3000/
 # Health Check
 curl http://localhost:3000/health
 
+# Web Client (Browser)
+open http://localhost:3000/client/index.html
+
 # WebSocket (install wscat: npm i -g wscat)
-wscat -c "ws://localhost:3000/ws1?userId=user123"
+wscat -c "ws://localhost:3000/ws?userId=user123&region=1"
 ```
 
 ---

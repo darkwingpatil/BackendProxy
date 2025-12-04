@@ -3,12 +3,10 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY package.json tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production && \
-    npm install -g tsx
+# Install dependencies (production only)
+RUN npm install --omit=dev
 
 # Copy source code
 COPY config.ts ./
